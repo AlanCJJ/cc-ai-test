@@ -23,12 +23,13 @@ let chessPieces = [];
 const player = { RED: 'R', GREEN: 'G' };
 let turn = player.RED;
 
-const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn = false, ignoreCheck = false) => {
+const isMoveValid = (chessPieces, type, side, currentCoordinates, newCoordinates, ignoreTurn = false, ignoreCheck = false) => {
   currentCoordinates = [currentCoordinates[0], currentCoordinates[1]];
   newCoordinates = [newCoordinates[0], newCoordinates[1]];
   if (!ignoreTurn && side !== turn) {
     return false;
   }
+
   if (newCoordinates[0] === currentCoordinates[0] && newCoordinates[1] === currentCoordinates[1]) {
     return false;
   } else if (newCoordinates[0] < 0 || newCoordinates[1] < 0 || newCoordinates[0] >= RANKS || newCoordinates[1] >= FILES) {
@@ -36,24 +37,21 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
   }
   const forward = side === player.GREEN ? 1 : -1;
 
-  const checkPieceAtNewLocation = getChessPieceAtLocation(newCoordinates[0], newCoordinates[1]);
+  const checkPieceAtNewLocation = getChessPieceAtLocation(chessPieces, newCoordinates[0], newCoordinates[1]);
   if (checkPieceAtNewLocation && checkPieceAtNewLocation.side === side) {
     return false;
   }
 
-  if (!ignoreCheck && sideIsChecked(chessPieces.filter(chessPiece => chessPiece != checkPieceAtNewLocation), side)) {
-    return false;
-  }
   switch (type) {
     case CHESSPIECE_TYPES.PAWN:
       if (newCoordinates[0] - currentCoordinates[0] === forward && newCoordinates[1] - currentCoordinates[1] === 0) {
-        return true;
+        legalMove = true;
       } else if (
         ((forward === -1 && currentCoordinates[0] <= 4) || (forward === 1 && currentCoordinates[0] >= 5)) &&
         newCoordinates[0] === currentCoordinates[0] &&
         [1, -1].includes(currentCoordinates[1] - newCoordinates[1])
       ) {
-        return true;
+        legalMove = true;
       } else {
         return false;
       }
@@ -68,31 +66,31 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
         }
         if (side === player.GREEN) {
           if (newCoordinates[0] >= 0 && newCoordinates[0] <= 2) {
-            return true;
+            legalMove = true;
           } else {
             return false;
           }
         } else {
           if (newCoordinates[0] >= 7 && newCoordinates[0] <= 9) {
-            return true;
+            legalMove = true;
           } else {
             return false;
           }
         }
       } else {
         // Check for flying General
-        const target = getChessPieceAtLocation(newCoordinates[0], newCoordinates[1]);
+        const target = getChessPieceAtLocation(chessPieces, newCoordinates[0], newCoordinates[1]);
         const targetEnemyKing = target && target.type === CHESSPIECE_TYPES.KING && target.side !== side;
         if (targetEnemyKing && currentCoordinates[1] === newCoordinates[1]) {
           let direction = Math.sign(newCoordinates[0] - currentCoordinates[0]);
           let rankCoordinate = (currentCoordinates[0] += direction);
           while (rankCoordinate != newCoordinates[0]) {
-            if (getChessPieceAtLocation(rankCoordinate, currentCoordinates[1])) {
+            if (getChessPieceAtLocation(chessPieces, rankCoordinate, currentCoordinates[1])) {
               return false;
             }
             rankCoordinate += direction;
           }
-          return true;
+          legalMove = true;
         } else {
           return false;
         }
@@ -106,23 +104,24 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
         let checkClear = currentCoordinates[1] + direction;
         while (checkClear !== newCoordinates[1]) {
           checkClear += direction;
-          if (getChessPieceAtLocation(currentCoordinates[0], checkClear)) {
+          if (getChessPieceAtLocation(chessPieces, currentCoordinates[0], checkClear)) {
             return false;
           }
         }
-        return true;
+        legalMove = true;
       } else {
         let direction = Math.sign(newCoordinates[0] - currentCoordinates[0]);
         let checkClear = currentCoordinates[0] + direction;
         while (checkClear !== newCoordinates[0]) {
-          const checkBlocker = getChessPieceAtLocation(checkClear, currentCoordinates[1]);
+          const checkBlocker = getChessPieceAtLocation(chessPieces, checkClear, currentCoordinates[1]);
           if (checkBlocker) {
             return false;
           }
           checkClear += direction;
         }
-        return true;
+        legalMove = true;
       }
+      break;
     case CHESSPIECE_TYPES.CANNON:
       let jumpedOver = false;
       if (newCoordinates[0] - currentCoordinates[0] !== 0 && newCoordinates[1] - currentCoordinates[1] !== 0) {
@@ -132,7 +131,7 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
         let checkClear = currentCoordinates[1] + direction;
         while (checkClear !== newCoordinates[1]) {
           checkClear += direction;
-          if (getChessPieceAtLocation(currentCoordinates[0], checkClear)) {
+          if (getChessPieceAtLocation(chessPieces, currentCoordinates[0], checkClear)) {
             if (jumpedOver) {
               return false;
             } else {
@@ -144,7 +143,7 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
         let direction = Math.sign(newCoordinates[0] - currentCoordinates[0]);
         let checkClear = currentCoordinates[0] + direction;
         while (checkClear !== newCoordinates[0]) {
-          if (getChessPieceAtLocation(checkClear, currentCoordinates[1])) {
+          if (getChessPieceAtLocation(chessPieces, checkClear, currentCoordinates[1])) {
             if (jumpedOver) {
               return false;
             } else {
@@ -154,37 +153,39 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
           checkClear += direction;
         }
       }
-      const checkCollision = getChessPieceAtLocation(newCoordinates[0], newCoordinates[1]);
+      const checkCollision = getChessPieceAtLocation(chessPieces, newCoordinates[0], newCoordinates[1]);
       if (jumpedOver) {
         if (!checkCollision || checkCollision.side === side) {
           return false;
         } else {
-          return true;
+          legalMove = true;
         }
       } else if (checkCollision) {
         return false;
       } else {
-        return true;
+        legalMove = true;
       }
+      break;
     case CHESSPIECE_TYPES.HORSE:
       const moveMatrix = [newCoordinates[0] - currentCoordinates[0], newCoordinates[1] - currentCoordinates[1]];
       if ((Math.abs(moveMatrix[0]) === 2 && Math.abs(moveMatrix[1]) === 1) || (Math.abs(moveMatrix[0]) === 1 && Math.abs(moveMatrix[1]) === 2)) {
         if (Math.abs(moveMatrix[0]) === 2) {
-          if (getChessPieceAtLocation(currentCoordinates[0] + Math.sign(moveMatrix[0]), currentCoordinates[1])) {
+          if (getChessPieceAtLocation(chessPieces, currentCoordinates[0] + Math.sign(moveMatrix[0]), currentCoordinates[1])) {
             return false;
           } else {
-            return true;
+            legalMove = true;
           }
         } else {
-          if (getChessPieceAtLocation(currentCoordinates[0], currentCoordinates[1] + Math.sign(moveMatrix[1]))) {
+          if (getChessPieceAtLocation(chessPieces, currentCoordinates[0], currentCoordinates[1] + Math.sign(moveMatrix[1]))) {
             return false;
           } else {
-            return true;
+            legalMove = true;
           }
         }
       } else {
         return false;
       }
+      break;
     case CHESSPIECE_TYPES.GUARD:
       if (Math.abs(newCoordinates[0] - currentCoordinates[0]) === 1 && Math.abs(newCoordinates[1] - currentCoordinates[1]) === 1) {
         if (newCoordinates[1] > 5 || newCoordinates[1] < 3) {
@@ -192,13 +193,13 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
         }
         if (side === player.GREEN) {
           if (newCoordinates[0] >= 0 && newCoordinates[0] <= 2) {
-            return true;
+            legalMove = true;
           } else {
             return false;
           }
         } else {
           if (newCoordinates[0] >= 7 && newCoordinates[0] <= 9) {
-            return true;
+            legalMove = true;
           } else {
             return false;
           }
@@ -206,10 +207,12 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
       } else {
         return false;
       }
+      break;
     case CHESSPIECE_TYPES.ELEPHANT:
       if (Math.abs(newCoordinates[0] - currentCoordinates[0]) === 2 && Math.abs(newCoordinates[1] - currentCoordinates[1]) === 2) {
         if (
           getChessPieceAtLocation(
+            chessPieces,
             currentCoordinates[0] + Math.sign(newCoordinates[0] - currentCoordinates[0]),
             currentCoordinates[1] + Math.sign(newCoordinates[1] - currentCoordinates[1])
           )
@@ -218,13 +221,13 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
         }
         if (side === player.GREEN) {
           if (newCoordinates[0] >= 0 && newCoordinates[0] <= 4) {
-            return true;
+            legalMove = true;
           } else {
             return false;
           }
         } else {
           if (newCoordinates[0] >= 5 && newCoordinates[0] <= 9) {
-            return true;
+            legalMove = true;
           } else {
             return false;
           }
@@ -232,17 +235,68 @@ const isMoveValid = (type, side, currentCoordinates, newCoordinates, ignoreTurn 
       } else {
         return false;
       }
+      break;
     default:
       return false;
   }
+  if (!ignoreCheck) {
+    console.log(`Checks if Leads to Suicide`);
+    if (
+      checkIfChecks(
+        [{ type, side, position: newCoordinates }].concat(
+          chessPieces.filter(
+            chessPiece =>
+              chessPiece !== checkPieceAtNewLocation &&
+              !(currentCoordinates[0] == chessPiece.position[0] && currentCoordinates[1] == chessPiece.position[1])
+          )
+        ),
+        side
+      )
+    ) {
+      console.log(`No Suicide Allowed`);
+      return false;
+    }
+    console.log(`No Suicide Good`);
+  }
+
+  return legalMove;
+};
+
+const checkIfChecks = (chessPieces, side) => {
+  const opponentPieces = chessPieces.filter(chessPiece => chessPiece.side !== side);
+  const opponentAvailableMoves = getAllLegalMoves(chessPieces, opponentPieces, true);
+  const yourKing = chessPieces.find(chessPiece => chessPiece.side === side && chessPiece.type === CHESSPIECE_TYPES.KING);
+
+  if (!yourKing) {
+    // Dafak
+    throw new Error('Something wrong la no King wtf?');
+  }
+  // console.log({ opponentAvailableMoves });
+  return !!opponentAvailableMoves.find(move => move[0] === yourKing.position[0] && move[1] === yourKing.position[1]);
+};
+
+const getAllLegalMoves = (chessPieces, pieces, ignoreCheck) => {
+  return pieces
+    .map(piece => {
+      let moves = [];
+      for (let rank = 0; rank < RANKS; rank++) {
+        for (let file = 0; file < FILES; file++) {
+          if (isMoveValid(chessPieces, piece.type, piece.side, [piece.position[0], piece.position[1]], [rank, file], true, ignoreCheck)) {
+            moves.push([rank, file]);
+          }
+        }
+      }
+      return moves;
+    })
+    .reduce((a, b) => a.concat(b), []);
 };
 
 const moveChessPiece = (currentCoord, newCoord) => {
-  const chessPiece = getChessPieceAtLocation(currentCoord[0], currentCoord[1]);
+  const chessPiece = getChessPieceAtLocation(chessPieces, currentCoord[0], currentCoord[1]);
   if (chessPiece) {
     console.log(`Moving ${chessPiece.type} to ${newCoord[0] + ':' + newCoord[1]}`);
-    if (isMoveValid(chessPiece.type, chessPiece.side, currentCoord, newCoord)) {
-      const capturedPiece = getChessPieceAtLocation(newCoord[0], newCoord[1]);
+    if (isMoveValid(chessPieces, chessPiece.type, chessPiece.side, currentCoord, newCoord)) {
+      const capturedPiece = getChessPieceAtLocation(chessPieces, newCoord[0], newCoord[1]);
       if (capturedPiece) {
         capturedPiece.position = [-1, -1];
       }
@@ -256,46 +310,6 @@ const moveChessPiece = (currentCoord, newCoord) => {
     console.log(`No Piece on ${currentCoord[0] + ':' + currentCoord[1]}`);
     return false;
   }
-};
-
-/***
- * inputs:
- *  chessPieces - Array of Chess Pieces
- *  turn
- *    G: G's turn
- *    R: R's turn
- * outputs:
- * G - G is being Checked
- * R - R is being Checked
- * GG - G is being Check Mated
- * RR - R is being Check Mated
- * null - no check
- */
-
-const sideIsChecked = (chessPieces, side) => {
-  const enemyPieces = chessPieces.filter(chessPiece => chessPiece.side !== side);
-  const kingPosition = chessPieces.find(chessPiece => chessPiece.side === side && chessPiece.type === CHESSPIECE_TYPES.KING).position;
-  const possibleMoves = enemyPieces.map(enemyPiece => allPossibleMoves(enemyPiece, true, true)).reduce((a, b) => a.concat(b), []);
-  if (possibleMoves.find(possibleMove => possibleMove[0] === kingPosition[0] && possibleMove[1] === kingPosition[1])) {
-    const yourPieces = chessPieces.filter(chessPiece => chessPiece.side === side);
-    if (yourPieces.map(yourPiece => allPossibleMoves(yourPiece)).reduce((a, b) => a.concat(b), []).length === 0) {
-      return side + side;
-    } else {
-      return side;
-    }
-  }
-};
-
-const allPossibleMoves = (piece, ignoreTurn, ignoreCheck) => {
-  let moves = [];
-  for (let i = 0; i < RANKS; i++) {
-    for (let j = 0; j < FILES; j++) {
-      if (isMoveValid(piece.type, piece.side, [piece.position[0], piece.position[1]], [i, j], ignoreTurn, ignoreCheck)) {
-        moves.push([i, j]);
-      }
-    }
-  }
-  return moves;
 };
 
 const initializeCheesPiece = () => {
@@ -467,7 +481,7 @@ const initializeCheesPiece = () => {
 };
 initializeCheesPiece();
 
-const getChessPieceAtLocation = (rank, file) => {
+const getChessPieceAtLocation = (chessPieces, rank, file) => {
   return chessPieces.find(chessPiece => chessPiece.position[0] === rank && chessPiece.position[1] === file);
 };
 
@@ -479,7 +493,7 @@ const printBoard = () => {
     rankStrings[0] = `${i}||`;
     rankStrings[1] = ` ||`;
     for (let j = 0; j < FILES; j++) {
-      const chessPiece = getChessPieceAtLocation(i, j);
+      const chessPiece = getChessPieceAtLocation(chessPieces, i, j);
       if (chessPiece) {
         rankStrings[0] += `${chessPiece.side}${CHESSPIECES_GRAPHICS[chessPiece.type][chessPiece.side]}`;
       } else if (j === 4 && [1, 8].includes(i)) {
@@ -502,14 +516,19 @@ const printBoard = () => {
       console.log(`${rankString}||`);
     });
   }
-  const beingChecked = sideIsChecked(chessPieces, turn);
+  const beingChecked = checkIfChecks(chessPieces, turn);
   if (beingChecked) {
-    console.log(`${beingChecked} is being checked!`);
+    console.log(`${turn} is being checked!`);
   }
   console.log(`It's ${turn}'s turn!`);
 };
 
+const getChessPieces = () => {
+  return chessPieces;
+};
+
 module.exports = {
   printBoard,
-  moveChessPiece
+  moveChessPiece,
+  getChessPieces
 };
