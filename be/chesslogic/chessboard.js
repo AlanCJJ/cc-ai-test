@@ -240,7 +240,6 @@ const isMoveValid = (chessPieces, type, side, currentCoordinates, newCoordinates
       return false;
   }
   if (!ignoreCheck) {
-    console.log(`Checks if Leads to Suicide`);
     if (
       checkIfChecks(
         [{ type, side, position: newCoordinates }].concat(
@@ -253,10 +252,8 @@ const isMoveValid = (chessPieces, type, side, currentCoordinates, newCoordinates
         side
       )
     ) {
-      console.log(`No Suicide Allowed`);
       return false;
     }
-    console.log(`No Suicide Good`);
   }
 
   return legalMove;
@@ -272,7 +269,11 @@ const checkIfChecks = (chessPieces, side) => {
     throw new Error('Something wrong la no King wtf?');
   }
   // console.log({ opponentAvailableMoves });
-  return !!opponentAvailableMoves.find(move => move[0] === yourKing.position[0] && move[1] === yourKing.position[1]);
+  const check = !!opponentAvailableMoves.find(move => move[0] === yourKing.position[0] && move[1] === yourKing.position[1]);
+  if (check) {
+    return true;
+  }
+  return false;
 };
 
 const getAllLegalMoves = (chessPieces, pieces, ignoreCheck) => {
@@ -518,7 +519,11 @@ const printBoard = () => {
   }
   const beingChecked = checkIfChecks(chessPieces, turn);
   if (beingChecked) {
-    console.log(`${turn} is being checked!`);
+    if (getAllLegalMoves(chessPieces, chessPieces.filter(chessPiece => chessPiece.side === turn)).length === 0) {
+      console.log(`${turn} is CHECKED AND MATED!!`);
+    } else {
+      console.log(`${turn} is being checked!`);
+    }
   }
   console.log(`It's ${turn}'s turn!`);
 };
